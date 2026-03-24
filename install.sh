@@ -1,5 +1,5 @@
 #!/bin/bash
-# CCFM Statusline Installer v1.1 (macOS / Linux)
+# CCFM Statusline Installer v1.2 (macOS / Linux)
 # 사용법: curl -sL https://raw.githubusercontent.com/ax-seo/ccfm-statusline/main/install.sh | bash
 
 set -e

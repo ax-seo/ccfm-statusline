@@ -1,5 +1,5 @@
 #!/bin/bash
-# CCFM Statusline v1.1 (macOS + Windows Git Bash 호환)
+# CCFM Statusline v1.2 (macOS + Windows Git Bash 호환)
 
 input=$(cat)
 
@@ -12,6 +12,7 @@ DIM='\033[2m'
 WHITE='\033[97m'
 RESET='\033[0m'
 BOLD='\033[1m'
+MAGENTA='\033[35m'
 
 # JSON 파싱
 DIR=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // "~"')
@@ -57,7 +58,6 @@ format_reset_day() {
   if [ "$reset_epoch" = "0" ] || [ "$reset_epoch" = "null" ]; then
     echo ""; return
   fi
-  # macOS: date -r, GNU/Windows Git Bash: date -d
   local day
   day=$(date -r "$reset_epoch" +%a 2>/dev/null) || \
   day=$(date -d "@$reset_epoch" +%a 2>/dev/null) || \
@@ -72,10 +72,18 @@ format_reset_day() {
 FIVE_H_RESET_FMT=$(format_reset "$FIVE_H_RESET")
 SEVEN_D_RESET_FMT=$(format_reset_day "$SEVEN_D_RESET")
 
+# 현재 시각
+NOW_TIME=$(date +%H:%M)
+NOW_DATE=$(date +%m/%d)
+
+# Git 브랜치
 BRANCH=""
 if git rev-parse --git-dir > /dev/null 2>&1; then
   BRANCH=$(git branch --show-current 2>/dev/null)
 fi
+
+# 터미널 너비
+COLS=$(tput cols 2>/dev/null || echo 120)
 
 bar_color() {
   local pct=$1
@@ -109,12 +117,53 @@ pct_color() {
   printf "${RESET}"
 }
 
-if [ -n "$BRANCH" ]; then
-  printf " 📂 ${CYAN}${BOLD}%s${RESET} │ ⑂ ${GREEN}%s${RESET}\n" "$PROJECT" "$BRANCH"
-else
-  printf " 📂 ${CYAN}${BOLD}%s${RESET}\n" "$PROJECT"
-fi
+# 우측 정렬 헬퍼
+right_align() {
+  local text="$1"
+  local visible_len="$2"
+  local line_used="$3"
+  local padding=$((COLS - line_used - visible_len - 1))
+  if [ "$padding" -gt 0 ]; then
+    printf "%${padding}s" ""
+  fi
+  printf "%s" "$text"
+}
 
+# ── Line 1: 프로젝트 + Git + 시각 ──
+LINE1_LEFT=""
+if [ -n "$BRANCH" ]; then
+  LINE1_LEFT=$(printf " 📂 ${CYAN}${BOLD}%s${RESET} │ ⑂ ${GREEN}%s${RESET}" "$PROJECT" "$BRANCH")
+  LINE1_LEFT_LEN=$((4 + ${#PROJECT} + 5 + ${#BRANCH}))
+else
+  LINE1_LEFT=$(printf " 📂 ${CYAN}${BOLD}%s${RESET}" "$PROJECT")
+  LINE1_LEFT_LEN=$((4 + ${#PROJECT}))
+fi
+LINE1_RIGHT=$(printf "${DIM}%s %s${RESET}" "$NOW_TIME" "$NOW_DATE")
+LINE1_RIGHT_LEN=$((${#NOW_TIME} + 1 + ${#NOW_DATE}))
+
+printf "%s" "$LINE1_LEFT"
+right_align "$LINE1_RIGHT" "$LINE1_RIGHT_LEN" "$LINE1_LEFT_LEN"
+printf "\n"
+
+# ── Line 2: Context 바 ──
 printf " ▸ ${WHITE}Context${RESET} "; draw_bar "$CTX_PCT" 20; printf " "; pct_color "$CTX_PCT"; printf " ${DIM}(%s/%s)${RESET}\n" "$CTX_USED_FMT" "$CTX_SIZE_FMT"
 
+# ── Line 3: 5H + 7D rate limit ──
 printf " ▸ ${WHITE}5H${RESET} "; draw_bar "$FIVE_H_PCT" 10; printf " "; pct_color "$FIVE_H_PCT"; printf " ${DIM}%s${RESET}  ${WHITE}7D${RESET} " "$FIVE_H_RESET_FMT"; draw_bar "$SEVEN_D_PCT" 10; printf " "; pct_color "$SEVEN_D_PCT"; printf " ${DIM}%s${RESET}\n" "$SEVEN_D_RESET_FMT"
+
+# ── Line 4~5: 캘린더 (캐시 파일 있을 때만) ──
+CALENDAR_CACHE=~/.claude/calendar-cache.json
+if [ -f "$CALENDAR_CACHE" ]; then
+  NOW_EPOCH=$(date +%s)
+  EVENTS=$(jq -r --argjson now "$NOW_EPOCH" '
+    [.[] | select(.start_epoch > $now)] | sort_by(.start_epoch) | .[0:3] |
+    .[] | "\(.time) \(.title) (\(.duration))"
+  ' "$CALENDAR_CACHE" 2>/dev/null)
+
+  if [ -n "$EVENTS" ]; then
+    printf " ${DIM}──────────────────────────────────────${RESET}\n"
+    while IFS= read -r event; do
+      printf " ${MAGENTA}📅${RESET} %s\n" "$event"
+    done <<< "$EVENTS"
+  fi
+fi

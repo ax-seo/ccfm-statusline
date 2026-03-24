@@ -1,4 +1,4 @@
-# CCFM Statusline Installer v1.1 (Windows PowerShell)
+# CCFM Statusline Installer v1.2 (Windows PowerShell)
 # 사용법: irm https://raw.githubusercontent.com/ax-seo/ccfm-statusline/main/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
