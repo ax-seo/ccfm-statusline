@@ -12,7 +12,6 @@ DIM='\033[2m'
 WHITE='\033[97m'
 RESET='\033[0m'
 BOLD='\033[1m'
-MAGENTA='\033[35m'
 
 # JSON 파싱
 DIR=$(echo "$input" | jq -r '.workspace.current_dir // .cwd // "~"')
@@ -150,20 +149,3 @@ printf " ▸ ${WHITE}Context${RESET} "; draw_bar "$CTX_PCT" 20; printf " "; pct_
 
 # ── Line 3: 5H + 7D rate limit ──
 printf " ▸ ${WHITE}5H${RESET} "; draw_bar "$FIVE_H_PCT" 10; printf " "; pct_color "$FIVE_H_PCT"; printf " ${DIM}%s${RESET}  ${WHITE}7D${RESET} " "$FIVE_H_RESET_FMT"; draw_bar "$SEVEN_D_PCT" 10; printf " "; pct_color "$SEVEN_D_PCT"; printf " ${DIM}%s${RESET}\n" "$SEVEN_D_RESET_FMT"
-
-# ── Line 4~5: 캘린더 (캐시 파일 있을 때만) ──
-CALENDAR_CACHE=~/.claude/calendar-cache.json
-if [ -f "$CALENDAR_CACHE" ]; then
-  NOW_EPOCH=$(date +%s)
-  EVENTS=$(jq -r --argjson now "$NOW_EPOCH" '
-    [.[] | select(.start_epoch > $now)] | sort_by(.start_epoch) | .[0:3] |
-    .[] | "\(.time) \(.title) (\(.duration))"
-  ' "$CALENDAR_CACHE" 2>/dev/null)
-
-  if [ -n "$EVENTS" ]; then
-    printf " ${DIM}──────────────────────────────────────${RESET}\n"
-    while IFS= read -r event; do
-      printf " ${MAGENTA}📅${RESET} %s\n" "$event"
-    done <<< "$EVENTS"
-  fi
-fi
